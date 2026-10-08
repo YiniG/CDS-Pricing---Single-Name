@@ -3,6 +3,7 @@ from .calibration import CalibrationError, bootstrap_credit_curve
 from .curves import CreditCurve, DiscountCurve
 from .dates import (CouponPeriod, act360, act365, add_months, cash_settle_date,
                     cds_maturity, cds_schedule, step_in_date)
+from .engines import ConventionalSpreadEngine, ParSpreadEngine, PricingResult
 from .pricing import (CDS, CDSValuation, premium_leg_annuities, protection_leg_pv,
                       signed, value_cds)
 from .quotes import (clean_price, conventional_spread_from_upfront,

@@ -11,6 +11,7 @@ A small, readable Python implementation of the ISDA standard model for single-na
 | Pricing | `cdsengine.pricing` | Closed-form protection leg, coupon leg and accrual on default; par spread; clean and dirty value; upfront |
 | Calibration | `cdsengine.calibration` | Hazard-curve bootstrap by root finding, with explicit errors for quotes that admit no arbitrage-free curve |
 | Quotes | `cdsengine.quotes` | Conventional spread, upfront and price conversions |
+| Engines | `cdsengine.engines` | `ConventionalSpreadEngine` (one quoted spread, flat curve) and `ParSpreadEngine` (par spread term structure), sharing one pricing core |
 | Risk | `cdsengine.risk` | RPV01, parallel and bucketed CS01, IR01, Rec01, jump-to-default |
 | Textbook model | `cdsengine.simple` | Annual-coupon bootstrap, kept as a reference point |
 
@@ -27,23 +28,27 @@ pytest -q
 
 ```python
 from datetime import date
-from cdsengine import (CDS, DiscountCurve, bootstrap_credit_curve,
-                       cds_maturity, risk_report, value_cds)
+from cdsengine import CDS, ConventionalSpreadEngine, DiscountCurve, ParSpreadEngine
 
 val = date(2020, 12, 14)
 disc = DiscountCurve.flat(val, 0.0295)
-maturities = [cds_maturity(val, 12 * y) for y in (1, 2, 3, 5)]
-spreads = [0.0050, 0.0077, 0.0094, 0.0125]
+cds = CDS(maturity=date(2025, 12, 20), coupon=0.01, recovery=0.40, notional=10_000_000)
 
-curve = bootstrap_credit_curve(val, maturities, spreads, recovery=0.40, disc=disc)
-cds = CDS(maturity=maturities[-1], coupon=0.01, recovery=0.40)
+# 1) You have the contract's own conventional spread
+conv = ConventionalSpreadEngine(val, disc).price(cds, spread=0.0125)
+print(conv.upfront, conv.price, conv.cash_settlement_amount, conv.cs01_amount)
 
-v = value_cds(cds, val, disc, curve)
-print(v.par_spread, v.upfront, v.rpv01_clean)
-print(risk_report(cds, val, maturities, spreads, disc))
+# 2) You have the name's par spread curve
+par_engine = ParSpreadEngine.from_tenors(val, disc, tenor_years=[1, 2, 3, 5],
+                                         par_spreads=[0.0050, 0.0077, 0.0094, 0.0125],
+                                         recovery=0.40)
+par = par_engine.price(cds)
+print(par.upfront, par.conventional_spread, par.cs01_bucket_amounts)
 ```
 
-Values are per unit notional from the protection buyer's point of view.
+Use the conventional engine when a single spread is quoted for the contract itself; it is exact for that contract only. Use the par engine when tenor quotes are available; it values every contract on the name consistently and gives bucketed risk. The lower-level functions (`bootstrap_credit_curve`, `value_cds`, `risk_report`) remain available.
+
+Per-unit results are from the protection buyer's point of view; fields ending in `_amount` apply the contract's notional and side.
 
 ## Validation
 
